@@ -68,9 +68,9 @@ class Database:
         self.execute(sql, parameters=(performer, id_task), commit=True)
 
     # Вибір всіх задач
-    def select_all_task(self):
-        sql = """SELECT * FROM Task"""
-        return self.execute(sql, fetchall=True)
+    def select_all_task(self, params: tuple):
+        sql = """SELECT * FROM Task WHERE performer = ?"""
+        return self.execute(sql, parameters=params, fetchall=True)
 
     # Вибір задачі для отримання інформації про неї
     def get_info_task(self, id_task: int):

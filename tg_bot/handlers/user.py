@@ -12,8 +12,8 @@ from tg_bot.misc.states import Task
 
 # Starting
 async def user_start(message: Message):
-    await message.answer(f"Привіт, {message.from_user.full_name}")
-    await message.answer("Я бот для створення задач.\nОберіть дії зі мною:", reply_markup=menu)
+    await message.answer(f"Привіт, {message.from_user.full_name} 👋")
+    await message.answer("Я бот помічник для повсякденних задач 😎\nОбери дії зі мною: 👇", reply_markup=menu)
 
 
 # Просто повертає id групи яка там вказана(якщо створити нову групу потрібно вказати її id)
@@ -23,7 +23,7 @@ def get_my_group_id():
 
 # Натискання на створення задачі
 async def enter_create_task(message: Message):
-    await message.answer("Введіть назву задачі:")
+    await message.answer("Введіть назву задачі: ⌨️")
 
     # Очікуємо відповідь з назвою задачі
     await Task.waiting_for_task_name.set()
@@ -38,8 +38,23 @@ async def answer_task_name(message: Message, state: FSMContext):
     await state.update_data(task_name=task_name)
 
     # Очікуємо деталі завдання
-    await message.answer("Введіть деталі завдання:")
+    await message.answer("Введіть деталі завдання: ⌨️")
     await Task.waiting_for_task_detail.set()
+
+
+# Формування info
+def get_formatted_info(id_task: int) -> str:
+    db = sqlite.Database()
+    info = db.get_info_task(id_task)
+    text = '\n'.join([
+        f'ID: {info[0]}',
+        f'Назва: {info[1]}',
+        f'Опис: {info[2]}',
+        f'Статус: {info[3]}',
+        f'Виконавець: {info[4]}',
+        f'Замовник: {info[5]}'
+    ])
+    return text
 
 
 # Отримання деталей задачі
@@ -53,19 +68,13 @@ async def answer_task_detail(message: Message, state: FSMContext):
     # _____________________________________________
     db = sqlite.Database()  # Операції з БД
     db.create_table_task()
-    db.add_task((task_name, task_detail, 'В очікуванні', None, user_name))
+    db.add_task((task_name, task_detail, 'В очікуванні', 'Не визначений', user_name))
     # Отримуємо id запису
     task_id = db.get_last_id()
     await state.update_data(id_task=task_id)
     # _____________________________________________
-
-    await message.answer('\n'.join([
-        'Задачу створено😊',
-        f'ID задачі: {task_id}',
-        f'Замовник: {user_name}',
-        f'Назва: {task_name}',
-        f'Деталі: {task_detail}',
-    ]), reply_markup=choice)
+    info = get_formatted_info(task_id)
+    await message.answer(f'Задачу створено😊\n{info}', reply_markup=choice)
 
     # Очікуємо відправки
     await Task.waiting_for_send_task.set()
@@ -77,20 +86,14 @@ def enter_send_task_to_wrapper(bot: Bot):
         # Отримання інформації зі стану
         data = await state.get_data()
         db = sqlite.Database()
-        info = db.get_info_task(data.get('id_task'))
-
+        id_task = data.get('id_task')
+        info = get_formatted_info(id_task)
         # Відправляємо задачу разом з клавіатурою у груповий чат
+        task_text = f'Нова задача  🤗\n{info}'
         GROUP_CHAT_ID = get_my_group_id()
-        task_text = '\n'.join([
-            '✋',
-            f'Нова задача від: {info[5]}',
-            f'ID задачі: {info[0]}',
-            f'Назва: {info[1]}',
-            f'Опис: {info[2]}',
-            f'Статус: {info[3]}'
-        ])
         await bot.send_message(GROUP_CHAT_ID, task_text, reply_markup=take_task)
         # -------------------------------------------------------
+        await call.message.edit_reply_markup()
         await call.message.reply("Задача надіслана!")
         await state.finish()
 
@@ -114,8 +117,7 @@ async def enter_take_task_in_group(call: CallbackQuery):
     performer = call.from_user.full_name
 
     # Отримання ID задачі
-    data = tuple(call.message.text.split('\n'))[2]
-    id_task = int(str(data).split(":")[1].strip())
+    id_task = get_id_task(callback=call)
 
     # Оновлення виконавця та її статусу
     db = sqlite.Database()
@@ -123,15 +125,8 @@ async def enter_take_task_in_group(call: CallbackQuery):
     db.update_task_status(id_task, 'В роботі')
 
     # Формування оновлення повідомлення
-    info = db.get_info_task(id_task)
-    task_text = '\n'.join([
-        'Оновлено 📦',
-        f'ID задачі: {info[0]}',
-        f'Назва: {info[1]}',
-        f'Опис: {info[2]}',
-        f'Статус: {info[3]}',
-        f'Виконавець: {info[5]}'
-    ])
+    info = get_formatted_info(id_task)
+    task_text = f'Оновлено 📦\n{info}'
     await call.message.edit_text(task_text)
     await call.message.edit_reply_markup(reply_markup=done)
     await call.answer("Задачу взято в роботу!")
@@ -146,21 +141,24 @@ async def update_task_to_done(call: CallbackQuery):
     db.update_task_status(id_task, 'Виконано')
 
     # Формування оновлення повідомлення
-    info = db.get_info_task(id_task)
-    task_text = '\n'.join([
-        'Оновлено 📦',
-        f'ID задачі: {info[0]}',
-        f'Назва: {info[1]}',
-        f'Опис: {info[2]}',
-        f'Статус: {info[3]}',
-        f'Виконавець: {info[5]}'
-    ])
+    info = get_formatted_info(id_task)
+    task_text = f'Оновлено 📦\n{info}'
     await call.message.edit_text(task_text)
     await call.answer("Задачу виконано!")
 
 
 # End --------------------------------------------------------------------------------------------------------
+# Перелік доступних задач ------------start-------------------
+async def enter_show_available_tasks(message: Message):
+    await message.answer("Секундочку, зараз надам цю інформацію")
+    db = sqlite.Database()
+    res = db.select_all_task(('Не визначений',))
+    for elem in res:
+        info = get_formatted_info(elem[0])
+        await message.answer(f"{info}")
 
+
+# End --------------------------------------------------------------------------------------------------------
 # Інформація про задачу ---------start---------------
 async def enter_info_task(message: Message):
     await message.answer("Введіть номер задачі яку Ви хочете переглянути:")
@@ -171,7 +169,6 @@ async def enter_info_task(message: Message):
 
 async def answer_info_task(message: Message, state: FSMContext):
     id_task = message.text
-    await message.answer(f'Ви ввели -> {id_task}')
 
     # Операції з БД
     db = sqlite.Database()
@@ -206,8 +203,8 @@ async def answer_delete_task(message: Message, state: FSMContext):
     res = db.get_info_task(id_task)
     db.delete_task(id_task)
     await message.answer('\n'.join([
-        f"ID:{res[0]}",
-        f"Назва:{res[1]}",
+        f"ID: {res[0]}",
+        f"Назва: {res[1]}",
         f"Задача була успішно видалена!"
     ]))
     await state.finish()
@@ -239,6 +236,9 @@ def register_user(dp: Dispatcher, bot: Bot):
     dp.register_callback_query_handler(enter_take_task_in_group, choice_callback.filter(name='take_task'))
     dp.register_callback_query_handler(update_task_to_done, choice_callback.filter(name="done"))
     # End --------------------------------------------------------------------------------------------------------
+    # Перелік доступних задач
+    dp.register_message_handler(enter_show_available_tasks, text="Доступні задачі")
+    # End --------------------------------------------------------------------------------------------------------
     # Інформація про задачу
     dp.register_message_handler(enter_info_task, text="Інформація про задачу")
     dp.register_message_handler(answer_info_task, state=Task.waiting_for_id_task_detail)
@@ -246,5 +246,8 @@ def register_user(dp: Dispatcher, bot: Bot):
     # Видалення задачі
     dp.register_message_handler(enter_delete_task, text="Видалити задачу")
     dp.register_message_handler(answer_delete_task, state=Task.waiting_for_id_task_delete)
+    # End --------------------------------------------------------------------------------------------------------
+    # Редагування задачі
+
     # End --------------------------------------------------------------------------------------------------------
     dp.register_message_handler(my_handler_wrapper(bot), chat_type=[types.ChatType.GROUP, types.ChatType.SUPERGROUP])

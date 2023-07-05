@@ -10,8 +10,11 @@ from tg_bot.filters.admin import AdminFilter
 from tg_bot.handlers.admin import register_admin
 from tg_bot.handlers.user import register_user
 from tg_bot.handlers.echo import register_echo
+from tg_bot.handlers.users.get_document import register_files
+from tg_bot.handlers.users.user import register_user_in_users
 
 from tg_bot.middlewares.environment import EnvironmentMiddleware
+from tg_bot.models.postgresql import Database
 from tg_bot.services.setting_commands import set_default_commands
 
 logger = logging.getLogger(__name__)
@@ -25,10 +28,11 @@ def register_all_filters(dp):
     dp.filters_factory.bind(AdminFilter)
 
 
-def register_all_handlers(dp, bot):
+def register_all_handlers(dp, bot, database):
     register_admin(dp)
     register_user(dp, bot)
-
+    register_user_in_users(dp, database)
+    register_files(dp, bot)
     register_echo(dp)
 
 
@@ -49,15 +53,19 @@ async def main():
     dp = Dispatcher(bot, storage=storage)
 
     bot['config'] = config
-
+    db = Database(bot)
     register_all_middlewares(dp, config)
     register_all_filters(dp)
-    register_all_handlers(dp, bot)
+    register_all_handlers(dp=dp, bot=bot, database=db)
 
     await set_all_default_commands(bot)
-
     # start
     try:
+        logger.info("Створюємо підключення до БД")
+        await db.create()
+        # await db.drop_users()
+        logger.info("Створюємо таблицю користувачів")
+        await db.create_table_users()
         await dp.start_polling()
     finally:
         await dp.storage.close()
