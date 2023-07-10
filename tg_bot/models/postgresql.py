@@ -14,6 +14,7 @@ class Database:
         self.pool: Union[Pool, None] = None
         self.config = get_my_config(bot)
 
+    # Створення пулу з'єднання
     async def create(self):
         self.pool = await asyncpg.create_pool(
             user=self.config.db.user,
@@ -40,22 +41,7 @@ class Database:
                     result = await connection.execute(command, *args)
             return result
 
-    async def create_table_users(self):
-        sql = """
-        CREATE TABLE IF NOT EXISTS Users (
-        id SERIAL PRIMARY KEY,
-        fullname VARCHAR(255) NOT NULL,
-        username VARCHAR(255) NULL,
-        telegram_id BIGINT NOT NULL UNIQUE
-        );
-        """
-        await self.execute(sql, execute=True)
-
-    # Додавання користувача в базу
-    async def add_user(self, fullname, username, telegram_id):
-        sql = "INSERT INTO Users (fullname, username, telegram_id) VALUES($1, $2, $3) returning *"
-        return await self.execute(sql, fullname, username, telegram_id, fetchrow=True)
-
+    # Форматування запиту
     @staticmethod
     def format_args(sql, parameters: dict):
         sql += " AND ".join([
@@ -63,6 +49,72 @@ class Database:
         ])
         return sql, tuple(parameters.values())
 
+    # ---------------------------------------------------------------------------------------------------------
+    # TODO: Створення таблиць
+    async def create_new_table_users(self):
+        sql = """
+            CREATE TABLE IF NOT EXISTS Users (
+            id SERIAL PRIMARY KEY, 
+            fullname VARCHAR(50) NULL, 
+            username VARCHAR(50) NULL, 
+            telegram_id BIGINT NOT NULL UNIQUE, 
+            role_name VARCHAR(255) NULL
+            );
+        """
+        await self.execute(sql, execute=True)
+
+    async def create_new_table_tasks(self):
+        sql = """
+            CREATE TABLE IF NOT EXISTS Tasks (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NULL,
+            detail TEXT NULL
+            );
+        """
+        await self.execute(sql, execute=True)
+
+    async def create_new_table_status(self):
+        sql = """
+            CREATE TABLE IF NOT EXISTS Status (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50) NULL UNIQUE
+            );
+        """
+        await self.execute(sql, execute=True)
+
+    async def create_new_table_worksheet(self):
+        sql = """
+                CREATE TABLE IF NOT EXISTS Worksheet (
+                id SERIAL PRIMARY KEY,
+                task_id BIGINT NOT NULL REFERENCES Tasks (id),
+                user_id BIGINT NOT NULL REFERENCES Users (id),
+                status_id BIGINT NOT NULL REFERENCES Status (id),
+                performer BIGINT NULL
+                );
+            """
+        await self.execute(sql, execute=True)
+
+    # TODO: Додавання в таблиці інформацію
+    async def add_new_user(self, fullname: str, username: str, telegram_id: int, role_name: str) -> object:
+        sql = """
+            INSERT INTO Users (fullname, username, telegram_id, role_name) 
+            VALUES($1, $2, $3, $4)
+        """
+        return await self.execute(sql, fullname, username, telegram_id, role_name, fetchrow=True)
+
+    async def add_new_task(self, name: str, detail: str) -> int:
+        sql = "INSERT INTO Tasks (name, detail) VALUES ($1, $2) returning id"
+        return await self.execute(sql, name, detail, fetchval=True)
+
+    async def add_new_status(self, name: str) -> int:
+        sql = "INSERT INTO Status (name) VALUES ($1) returning id"
+        return await self.execute(sql, name, fetchval=True)
+
+    async def add_new_entry_in_worksheet(self, task_id: int, user_id: int, status_id: int) -> int:
+        sql = """INSERT INTO Worksheet (task_id, user_id, status_id) VALUES ($1, $2, $3) returning id"""
+        return await self.execute(sql, task_id, user_id, status_id, fetchval=True)
+
+    # TODO: Перегляд даних з таблиць
     async def select_user(self, **kwargs):
         sql = "SELECT * FROM Users WHERE "
         sql, parameters = self.format_args(sql, parameters=kwargs)
@@ -72,10 +124,74 @@ class Database:
         sql = "SELECT * FROM Users"
         return await self.execute(sql, fetch=True)
 
-    async def select_count_users(self):
-        sql = "SELECT COUNT(*) FROM Users"
-        return await self.execute(sql, fetchval=True)
+    async def select_entry(self, entry_id: int) -> object:
+        sql = """
+               SELECT *
+               FROM Worksheet
+               JOIN Tasks ON Worksheet.task_id = Tasks.id
+               JOIN Users ON Worksheet.user_id = Users.id
+               JOIN Status ON Worksheet.status_id = Status.id
+               WHERE Worksheet.id = $1
+           """
+        return await self.execute(sql, entry_id, fetchrow=True)
 
-    async def drop_users(self):
-        sql = "DROP TABLE Users"
-        await self.execute(sql, execute=True)
+    # TODO: Отримання даних з таблиць
+    async def get_status_id(self, name: str) -> int:
+        sql = "SELECT id FROM Status WHERE name = $1"
+        return await self.execute(sql, name, fetchval=True)
+    # ---------------------------------------------------------------------------------------------------------
+    # # Створення таблиці користувачів
+    # async def create_table_users(self):
+    #     sql = """
+    #         CREATE TABLE IF NOT EXISTS Users (
+    #         id SERIAL PRIMARY KEY,
+    #         fullname VARCHAR(255) NOT NULL,
+    #         username VARCHAR(255) NULL,
+    #         telegram_id BIGINT NOT NULL UNIQUE,
+    #         role_name VARCHAR(50) NULL
+    #         );
+    #     """
+    #     await self.execute(sql, execute=True)
+    #
+    # # Створення таблиці задач
+    # async def create_table_tasks(self):
+    #     sql = '''
+    #         CREATE TABLE IF NOT EXISTS Task
+    #          (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    #          task_name TEXT NOT NULL,
+    #          task_detail TEXT NOT NULL,
+    #          status TEXT NULL,
+    #          performer TEXT NULL,
+    #          customer TEXT NULL
+    #          );
+    #      '''
+    #     await self.execute(sql, execute=True)
+    #
+    # # Створення зв'язку між таблицями Users and Tasks
+    # async def users_tasks(self):
+    #     sql = """
+    #         CREATE TABLE Users_Task (
+    #         user_id INTEGER REFERENCES Users(id),
+    #         task_id INTEGER REFERENCES Task(id),
+    #         PRIMARY KEY (user_id, task_id)
+    #     """
+    #     await self.execute(sql, execute=True)
+
+    # Додавання користувача в базу
+    # async def add_user(self, fullname, username, telegram_id, role_name):
+    #     sql = """
+    #         INSERT INTO Users (fullname, username, telegram_id, role_name)
+    #         VALUES($1, $2, $3, $4) returning *
+    #         """
+    #     return await self.execute(sql, fullname, username, telegram_id, role_name, fetchrow=True)
+    #
+    # async def add_task(self, task_name, task_detail, status, performer, customer):
+    #     sql = """
+    #         INSERT INTO Task (task_name, task_detail, status, performer, customer)
+    #         VALUES ($1, $2, $3, $4, $5) returning *
+    #         """
+    #     return await self.execute(sql, task_name, task_detail, status, performer, customer, fetchrow=True)
+
+    # async def select_count_users(self):
+    #     sql = "SELECT COUNT(*) FROM Users"
+    #     return await self.execute(sql, fetchval=True)

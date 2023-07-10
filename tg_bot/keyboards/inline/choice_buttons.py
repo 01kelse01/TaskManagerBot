@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, inline_keyboard
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from tg_bot.keyboards.inline.callback_datas import choice_callback
 
@@ -26,6 +26,15 @@ done = InlineKeyboardMarkup(row_width=1, inline_keyboard=[
         InlineKeyboardButton(
             text='Позначити як виконану',
             callback_data=choice_callback.new(name='done')
+        )
+    ]
+])
+
+take = InlineKeyboardMarkup(inline_keyboard=[
+    [
+        InlineKeyboardButton(
+            text="Взяти до роботи",
+            callback_data=choice_callback.new(name='take_new_task')
         )
     ]
 ])

@@ -16,3 +16,11 @@ class Task(StatesGroup):
 
     # Очікування id задачі для видалення
     waiting_for_id_task_delete = State()
+
+
+class Task2(StatesGroup):
+    # Очікування назви завдання
+    waiting_for_task_name = State()
+
+    # Очікування деталей завдання
+    waiting_for_task_detail = State()

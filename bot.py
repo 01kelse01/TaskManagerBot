@@ -63,9 +63,17 @@ async def main():
     try:
         logger.info("Створюємо підключення до БД")
         await db.create()
-        # await db.drop_users()
         logger.info("Створюємо таблицю користувачів")
-        await db.create_table_users()
+        await db.create_new_table_users()
+        logger.info("Створюємо таблицю задач")
+        await db.create_new_table_tasks()
+        logger.info("Створюємо таблицю статусів")
+        await db.create_new_table_status()
+        logger.info("Створюємо головну таблицю")
+        await db.create_new_table_worksheet()
+
+        logger.info("Запускаємо бота")
+        # Старт бота
         await dp.start_polling()
     finally:
         await dp.storage.close()
