@@ -18,9 +18,17 @@ class Task(StatesGroup):
     waiting_for_id_task_delete = State()
 
 
+class Command(StatesGroup):
+    # Очікування команди
+    waiting_command = State()
+
+
 class Task2(StatesGroup):
     # Очікування назви завдання
     waiting_for_task_name = State()
 
     # Очікування деталей завдання
     waiting_for_task_detail = State()
+
+    # Очікування натискання take_new_task
+    waiting_take_new_task = State()

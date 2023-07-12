@@ -29,12 +29,32 @@ done = InlineKeyboardMarkup(row_width=1, inline_keyboard=[
         )
     ]
 ])
+# ----------------------------------------------------
+
+send = InlineKeyboardMarkup(row_width=1, inline_keyboard=[
+    [
+        InlineKeyboardButton(
+            text="Відправити",
+            callback_data=choice_callback.new(name='send_new_task')
+        )
+    ]
+
+])
 
 take = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(
-            text="Взяти до роботи",
+            text="Взяти в роботу",
             callback_data=choice_callback.new(name='take_new_task')
+        )
+    ]
+])
+
+make_done = InlineKeyboardMarkup(row_width=1, inline_keyboard=[
+    [
+        InlineKeyboardButton(
+            text='Позначити як виконану 🫡',
+            callback_data=choice_callback.new(name='done_task')
         )
     ]
 ])

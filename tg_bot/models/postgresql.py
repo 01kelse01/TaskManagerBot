@@ -16,6 +16,7 @@ class Database:
 
     # Створення пулу з'єднання
     async def create(self):
+        """Create pool"""
         self.pool = await asyncpg.create_pool(
             user=self.config.db.user,
             password=self.config.db.password,
@@ -51,11 +52,12 @@ class Database:
 
     # ---------------------------------------------------------------------------------------------------------
     # TODO: Створення таблиць
-    async def create_new_table_users(self):
+
+    async def create_table_customers(self):
         sql = """
-            CREATE TABLE IF NOT EXISTS Users (
+            CREATE TABLE IF NOT EXISTS Customers (
             id SERIAL PRIMARY KEY, 
-            fullname VARCHAR(50) NULL, 
+            fullname VARCHAR(100) NULL, 
             username VARCHAR(50) NULL, 
             telegram_id BIGINT NOT NULL UNIQUE, 
             role_name VARCHAR(255) NULL
@@ -63,7 +65,19 @@ class Database:
         """
         await self.execute(sql, execute=True)
 
-    async def create_new_table_tasks(self):
+    async def create_table_performers(self):
+        sql = """
+            CREATE TABLE IF NOT EXISTS Performers (
+            id SERIAL PRIMARY KEY, 
+            fullname VARCHAR(100) NULL, 
+            username VARCHAR(50) NULL, 
+            telegram_id BIGINT NOT NULL UNIQUE, 
+            role_name VARCHAR(255) NULL
+            );
+        """
+        await self.execute(sql, execute=True)
+
+    async def create_table_tasks(self):
         sql = """
             CREATE TABLE IF NOT EXISTS Tasks (
             id SERIAL PRIMARY KEY,
@@ -73,7 +87,7 @@ class Database:
         """
         await self.execute(sql, execute=True)
 
-    async def create_new_table_status(self):
+    async def create_table_status(self):
         sql = """
             CREATE TABLE IF NOT EXISTS Status (
             id SERIAL PRIMARY KEY,
@@ -82,63 +96,87 @@ class Database:
         """
         await self.execute(sql, execute=True)
 
-    async def create_new_table_worksheet(self):
+    async def create_table_worksheet(self):
         sql = """
                 CREATE TABLE IF NOT EXISTS Worksheet (
                 id SERIAL PRIMARY KEY,
-                task_id BIGINT NOT NULL REFERENCES Tasks (id),
-                user_id BIGINT NOT NULL REFERENCES Users (id),
-                status_id BIGINT NOT NULL REFERENCES Status (id),
-                performer BIGINT NULL
+                task_id INT NOT NULL REFERENCES Tasks (id),
+                status_id INT NOT NULL REFERENCES Status (id),
+                customer_id INT NOT NULL REFERENCES Customers (id),
+                performer_id INT NULL REFERENCES Performers (id)
                 );
             """
         await self.execute(sql, execute=True)
 
-    # TODO: Додавання в таблиці інформацію
-    async def add_new_user(self, fullname: str, username: str, telegram_id: int, role_name: str) -> object:
-        sql = """
-            INSERT INTO Users (fullname, username, telegram_id, role_name) 
-            VALUES($1, $2, $3, $4)
-        """
-        return await self.execute(sql, fullname, username, telegram_id, role_name, fetchrow=True)
+    async def create_all_tables(self):
+        """Create all tables in Database"""
+        await self.create_table_customers()
+        await self.create_table_performers()
+        await self.create_table_tasks()
+        await self.create_table_status()
+        await self.create_table_worksheet()
 
-    async def add_new_task(self, name: str, detail: str) -> int:
+    # TODO: Додавання в таблиці інформацію
+    async def add_customer(self, fullname: str, username: str, telegram_id: int, role_name: str) -> int:
+        sql = "INSERT INTO Customers (fullname, username, telegram_id, role_name) VALUES($1, $2, $3, $4) returning id"
+        return await self.execute(sql, fullname, username, telegram_id, role_name, fetchval=True)
+
+    async def add_performer(self, fullname: str, username: str, telegram_id: int, role_name: str) -> int:
+        sql = "INSERT INTO Performers (fullname, username, telegram_id, role_name) VALUES($1, $2, $3, $4) returning id"
+        return await self.execute(sql, fullname, username, telegram_id, role_name, fetchval=True)
+
+    async def add_task(self, name: str, detail: str) -> int:
         sql = "INSERT INTO Tasks (name, detail) VALUES ($1, $2) returning id"
         return await self.execute(sql, name, detail, fetchval=True)
 
-    async def add_new_status(self, name: str) -> int:
+    async def add_status(self, name: str) -> int:
         sql = "INSERT INTO Status (name) VALUES ($1) returning id"
         return await self.execute(sql, name, fetchval=True)
 
-    async def add_new_entry_in_worksheet(self, task_id: int, user_id: int, status_id: int) -> int:
-        sql = """INSERT INTO Worksheet (task_id, user_id, status_id) VALUES ($1, $2, $3) returning id"""
-        return await self.execute(sql, task_id, user_id, status_id, fetchval=True)
+    async def add_entry_in_worksheet(self, task_id: int, status_id: int, customer_id: int) -> int:
+        sql = """
+            INSERT INTO Worksheet (task_id, status_id, customer_id) VALUES ($1, $2, $3) returning id
+        """
+        return await self.execute(sql, task_id, status_id, customer_id, fetchval=True)
 
     # TODO: Перегляд даних з таблиць
-    async def select_user(self, **kwargs):
-        sql = "SELECT * FROM Users WHERE "
+    async def select_user(self, table_name: str, **kwargs):
+        sql = f"SELECT * FROM {table_name} WHERE "
         sql, parameters = self.format_args(sql, parameters=kwargs)
         return await self.execute(sql, *parameters, fetchrow=True)
-
-    async def select_all_users(self):
-        sql = "SELECT * FROM Users"
-        return await self.execute(sql, fetch=True)
 
     async def select_entry(self, entry_id: int) -> object:
         sql = """
                SELECT *
                FROM Worksheet
                JOIN Tasks ON Worksheet.task_id = Tasks.id
-               JOIN Users ON Worksheet.user_id = Users.id
                JOIN Status ON Worksheet.status_id = Status.id
+               JOIN Customers ON Worksheet.customer_id_id = Customers.id
+               JOIN Performers ON Worksheet.performer_id = Performers.id
                WHERE Worksheet.id = $1
            """
         return await self.execute(sql, entry_id, fetchrow=True)
 
     # TODO: Отримання даних з таблиць
-    async def get_status_id(self, name: str) -> int:
+    async def get_status_id(self, name) -> int:
         sql = "SELECT id FROM Status WHERE name = $1"
         return await self.execute(sql, name, fetchval=True)
+
+    async def get_status_name(self, status_id: int) -> str:
+        sql = 'SELECT name FROM Status WHERE id = $1'
+        return await self.execute(sql, status_id, fetchval=True)
+
+    # TODO: Оновлення даних в таблицях
+    async def update_entry_in_worksheet(self, entry_id: int, status_id: int, performer_id: int, ):
+        sql = """
+                UPDATE Worksheet
+                SET status_id = $1,
+                    performer_id = $2
+
+                WHERE id = $3;
+            """
+        await self.execute(sql, status_id, performer_id, entry_id, execute=True)
+
     # ---------------------------------------------------------------------------------------------------------
     # # Створення таблиці користувачів
     # async def create_table_users(self):

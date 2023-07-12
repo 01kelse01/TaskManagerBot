@@ -31,7 +31,7 @@ def register_all_filters(dp):
 def register_all_handlers(dp, bot, database):
     register_admin(dp)
     register_user(dp, bot)
-    register_user_in_users(dp, database)
+    register_user_in_users(dp, database, bot)
     register_files(dp, bot)
     register_echo(dp)
 
@@ -47,32 +47,23 @@ async def main():
     )
     logger.info("Starting bot")
     config = load_config(".env")
-
     storage = RedisStorage2() if config.tg_bot.use_redis else MemoryStorage()
     bot = Bot(token=config.tg_bot.token, parse_mode='HTML')
     dp = Dispatcher(bot, storage=storage)
-
     bot['config'] = config
     db = Database(bot)
+
     register_all_middlewares(dp, config)
     register_all_filters(dp)
     register_all_handlers(dp=dp, bot=bot, database=db)
 
     await set_all_default_commands(bot)
+
     # start
     try:
-        logger.info("Створюємо підключення до БД")
+        # Створення таблиць
         await db.create()
-        logger.info("Створюємо таблицю користувачів")
-        await db.create_new_table_users()
-        logger.info("Створюємо таблицю задач")
-        await db.create_new_table_tasks()
-        logger.info("Створюємо таблицю статусів")
-        await db.create_new_table_status()
-        logger.info("Створюємо головну таблицю")
-        await db.create_new_table_worksheet()
-
-        logger.info("Запускаємо бота")
+        await db.create_all_tables()
         # Старт бота
         await dp.start_polling()
     finally:
